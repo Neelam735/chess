@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'chess_ai.dart';
 import 'chess_controller.dart';
 import 'chess_logic.dart';
 import 'ad_helper.dart';
@@ -11,11 +12,21 @@ import 'widgets/banner_ad_widget.dart';
 import 'widgets/promotion_dialog.dart';
 
 class ChessGameScreen extends StatefulWidget {
-  const ChessGameScreen({super.key});
+  final GameMode gameMode;
+  final AIDifficulty aiDifficulty;
+  final PieceColor playerColor;
+
+  const ChessGameScreen({
+    super.key,
+    this.gameMode = GameMode.twoPlayer,
+    this.aiDifficulty = AIDifficulty.medium,
+    this.playerColor = PieceColor.white,
+  });
 
   @override
   State<ChessGameScreen> createState() => _ChessGameScreenState();
 }
+
 
 class _ChessGameScreenState extends State<ChessGameScreen> {
   late ChessController _controller;
@@ -26,11 +37,16 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = ChessController();
+    _controller = ChessController(
+      gameMode: widget.gameMode,
+      aiDifficulty: widget.aiDifficulty,
+      playerColor: widget.playerColor,
+    );
     _controller.addListener(_onStateChange);
     _loadInterstitialAd();
     _loadRewardedAd();
   }
+
 
   // ── Ads ───────────────────────────────────────────────────────────────────
   void _loadInterstitialAd() {

@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'chess_ai.dart';
 import 'chess_logic.dart';
+
+enum GameMode { twoPlayer, vsComputer }
 
 class ChessController extends ChangeNotifier {
   late List<List<ChessPiece?>> _board;
@@ -17,10 +20,28 @@ class ChessController extends ChangeNotifier {
   Position? _lastMoveFrom;
   Position? _lastMoveTo;
   Position? _pendingPromotion;
+  bool _aiThinking = false;
 
-  ChessController() {
+  final GameMode gameMode;
+  final AIDifficulty aiDifficulty;
+  final PieceColor playerColor;
+
+  ChessController({
+    this.gameMode = GameMode.twoPlayer,
+    this.aiDifficulty = AIDifficulty.medium,
+    this.playerColor = PieceColor.white,
+  }) {
     _initGame();
+    _maybeTriggerAI();
   }
+
+  PieceColor get aiColor =>
+      playerColor == PieceColor.white ? PieceColor.black : PieceColor.white;
+
+  bool get isAiTurn =>
+      gameMode == GameMode.vsComputer && _currentTurn == aiColor;
+
+  bool get aiThinking => _aiThinking;
 
   // ── Getters ───────────────────────────────────────────────────────────────
   List<List<ChessPiece?>> get board           => _board;
@@ -71,17 +92,18 @@ class ChessController extends ChangeNotifier {
   void resetGame() {
     _initGame();
     notifyListeners();
+    _maybeTriggerAI();
   }
 
   // ── Square tap ────────────────────────────────────────────────────────────
   void onSquareTap(Position pos) {
     if (isGameOver || awaitingPromotion) return;
+    if (isAiTurn || _aiThinking) return;
 
     final int r = pos.row;
     final int c = pos.col;
     final piece = _board[r][c];
 
-    // Is this square one of the legal move destinations?
     final bool isLegalDest = _legalMoves
         .any((m) => m.row == r && m.col == c);
 
@@ -90,13 +112,11 @@ class ChessController extends ChangeNotifier {
         'isLegalDest=$isLegalDest '
         'legalMoves=${_legalMoves.length}');
 
-    // Case 1: a piece is selected AND this square is a legal destination → MOVE
     if (_selectedPos != null && isLegalDest) {
       _executeMove(_selectedPos!, pos);
       return;
     }
 
-    // Case 2: tapped one of our own pieces → SELECT (or re-select)
     if (piece != null && piece.color == _currentTurn) {
       _selectedPos = pos;
       _legalMoves = ChessLogic.getLegalMoves(
@@ -105,7 +125,6 @@ class ChessController extends ChangeNotifier {
       return;
     }
 
-    // Case 3: tapped empty or enemy square with nothing useful → DESELECT
     _selectedPos = null;
     _legalMoves = [];
     notifyListeners();
@@ -125,7 +144,6 @@ class ChessController extends ChangeNotifier {
 
     final nb = _board.map((r) => List<ChessPiece?>.from(r)).toList();
 
-    // En passant capture
     if (piece.type == PieceType.pawn &&
         _enPassantTarget != null && to == _enPassantTarget) {
       final capRow = piece.color == PieceColor.white ? to.row + 1 : to.row - 1;
@@ -140,7 +158,6 @@ class ChessController extends ChangeNotifier {
       _addCaptured(piece.color, captured);
     }
 
-    // Castling – slide rook
     if (piece.type == PieceType.king) {
       final diff = to.col - from.col;
       if (diff.abs() == 2) {
@@ -153,7 +170,6 @@ class ChessController extends ChangeNotifier {
     nb[to.row][to.col]     = piece;
     nb[from.row][from.col] = null;
 
-    // Update castling rights
     final nc = Map<String, bool>.from(_castlingRights);
     if (piece.type == PieceType.king) {
       final p = piece.color == PieceColor.white ? 'w' : 'b';
@@ -165,7 +181,6 @@ class ChessController extends ChangeNotifier {
     }
     _castlingRights = nc;
 
-    // En-passant target for next move
     _enPassantTarget = (piece.type == PieceType.pawn && (to.row - from.row).abs() == 2)
         ? Position((from.row + to.row) ~/ 2, from.col)
         : null;
@@ -174,8 +189,14 @@ class ChessController extends ChangeNotifier {
     _lastMoveTo   = to;
     _board        = nb;
 
-    // Pawn promotion – wait for player choice
     if (piece.type == PieceType.pawn && (to.row == 0 || to.row == 7)) {
+      final isAiMove = gameMode == GameMode.vsComputer && piece.color == aiColor;
+      if (isAiMove) {
+        nb[to.row][to.col] = ChessPiece(color: piece.color, type: PieceType.queen);
+        _board = nb;
+        _finishTurn(from, to, piece, captured, isEnPassant, isCastling, PieceType.queen);
+        return;
+      }
       _pendingPromotion = to;
       _selectedPos      = null;
       _legalMoves       = [];
@@ -207,9 +228,9 @@ class ChessController extends ChangeNotifier {
     _selectedPos = null;
     _legalMoves  = [];
     notifyListeners();
+    _maybeTriggerAI();
   }
 
-  // ── After each move: switch turn, detect check/mate/stalemate ────────────
   void _finishTurn(Position from, Position to, ChessPiece piece,
       ChessPiece? captured, bool isEnPassant, bool isCastling,
       PieceType? promotionType) {
@@ -229,6 +250,29 @@ class ChessController extends ChangeNotifier {
     _selectedPos = null;
     _legalMoves  = [];
     notifyListeners();
+    _maybeTriggerAI();
+  }
+
+  void _maybeTriggerAI() {
+    if (!isAiTurn || isGameOver || awaitingPromotion || _aiThinking) return;
+    _aiThinking = true;
+    notifyListeners();
+
+    Future.delayed(const Duration(milliseconds: 350), () {
+      final move = ChessAI.getBestMove(
+        board: _board,
+        aiColor: aiColor,
+        difficulty: aiDifficulty,
+        enPassantTarget: _enPassantTarget,
+        castlingRights: _castlingRights,
+      );
+      _aiThinking = false;
+      if (move == null || isGameOver) {
+        notifyListeners();
+        return;
+      }
+      _executeMove(move.from, move.to);
+    });
   }
 
   void _switchAndCheck() {
