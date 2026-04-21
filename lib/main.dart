@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'chess_game.dart';
+import 'home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +28,7 @@ class ChessApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const ChessGameScreen(),
+      home: const HomeScreen(),
     );
   }
 }
