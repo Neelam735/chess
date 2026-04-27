@@ -58,12 +58,25 @@ class _PaywallScreenState extends State<PaywallScreen>
   }
 
   void _close() {
-    if (Navigator.canPop(context)) Navigator.pop(context);
+    if (Navigator.canPop(context)) {
+      Navigator.popUntil(context, (route) => route.isFirst);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final billing = BillingService.instance;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _close();
+      },
+      child: _buildScaffold(billing),
+    );
+  }
+
+  Widget _buildScaffold(BillingService billing) {
     return Scaffold(
       backgroundColor: _kBg,
       body: Stack(

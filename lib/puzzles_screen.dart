@@ -417,14 +417,34 @@ class _PuzzleSolveScreenState extends State<PuzzleSolveScreen> {
     });
   }
 
+  void _goHome() {
+    Navigator.popUntil(context, (route) => route.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     final puzzle = widget.puzzle;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _goHome();
+      },
+      child: _buildBody(puzzle),
+    );
+  }
+
+  Widget _buildBody(ChessPuzzle puzzle) {
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
         backgroundColor: _kBg,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: _kGold),
+          tooltip: 'Home',
+          onPressed: _goHome,
+        ),
         title: Text(
           puzzle.title,
           style: const TextStyle(
@@ -505,7 +525,7 @@ class _PuzzleSolveScreenState extends State<PuzzleSolveScreen> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _status == _PuzzleStatus.success
-                          ? () => Navigator.pop(context)
+                          ? _goHome
                           : _showSolution,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _kGold,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'billing_service.dart';
 import 'chess_ai.dart';
@@ -89,6 +90,36 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   bool _isPremiumDifficulty(AIDifficulty d) =>
       d == AIDifficulty.medium || d == AIDifficulty.hard;
 
+  Future<void> _onLogoLongPress() async {
+    final premium = await BillingService.instance.togglePremiumDebug();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF1E1E1E),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(
+              premium ? Icons.workspace_premium_rounded : Icons.lock_outline_rounded,
+              size: 16,
+              color: const Color(0xFFC8A96E),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              premium ? 'DEBUG: Premium ON' : 'DEBUG: Premium OFF',
+              style: const TextStyle(
+                color: Color(0xFFC8A96E),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,27 +190,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Column(
       children: [
         // Animated chess board icon
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2A2A2A), Color(0xFF1A1A1A)],
-            ),
-            border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.4), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFC8A96E).withOpacity(0.2),
-                blurRadius: 30,
-                spreadRadius: 2,
+        GestureDetector(
+          onLongPress: kDebugMode ? _onLogoLongPress : null,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2A2A2A), Color(0xFF1A1A1A)],
               ),
-            ],
-          ),
-          child: const Center(
-            child: Text('♟', style: TextStyle(fontSize: 52)),
+              border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.4), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC8A96E).withOpacity(0.2),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text('♟', style: TextStyle(fontSize: 52)),
+            ),
           ),
         ),
         const SizedBox(height: 20),

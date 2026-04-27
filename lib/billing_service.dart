@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps Google Play Billing for the chess app's single non-consumable
 /// "premium" upgrade. Listens to the global purchase stream, exposes a
@@ -13,6 +14,9 @@ class BillingService {
 
   /// Product ID configured in Google Play Console / App Store Connect.
   static const String premiumProductId = 'chess_premium_unlock';
+
+  /// SharedPreferences key for the debug-only "force premium" flag.
+  static const String _kDebugPremiumKey = 'debug_premium_override';
 
   final InAppPurchase _iap = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _sub;
@@ -30,6 +34,16 @@ class BillingService {
   final ValueNotifier<bool> isPurchasing = ValueNotifier<bool>(false);
 
   Future<void> init() async {
+    // Apply any debug-only premium override before touching the store, so
+    // gated UI is correct even on emulators / dev builds where billing
+    // isn't reachable.
+    if (kDebugMode) {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kDebugPremiumKey) ?? false) {
+        isPremium.value = true;
+      }
+    }
+
     available.value = await _iap.isAvailable();
     if (!available.value) return;
 
@@ -74,6 +88,17 @@ class BillingService {
 
   /// Restores any previously completed purchases.
   Future<void> restorePurchases() => _iap.restorePurchases();
+
+  /// Debug-only: flip the premium flag and persist it across launches.
+  /// No-op outside of debug builds so the override can never ship.
+  Future<bool> togglePremiumDebug() async {
+    if (!kDebugMode) return isPremium.value;
+    final prefs = await SharedPreferences.getInstance();
+    final next = !isPremium.value;
+    await prefs.setBool(_kDebugPremiumKey, next);
+    isPremium.value = next;
+    return next;
+  }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
     for (final purchase in purchases) {
