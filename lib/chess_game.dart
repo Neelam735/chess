@@ -173,18 +173,76 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     );
   }
 
+  Future<bool> _confirmQuitGame() async {
+    if (_controller.isGameOver) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text(
+          'Quit Game?',
+          style: TextStyle(
+            color: Color(0xFFC8A96E),
+            fontFamily: 'serif',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Your current game progress will be lost.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep Playing',
+                style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Quit',
+                style: TextStyle(color: Color(0xFFC8A96E),
+                    fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final isLandscape = MediaQuery.of(context).size.width >
         MediaQuery.of(context).size.height;
 
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (await _confirmQuitGame() && mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: _buildScaffold(isLandscape),
+    );
+  }
+
+  Widget _buildScaffold(bool isLandscape) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF161616),
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFFC8A96E)),
+          tooltip: 'Home',
+          onPressed: () async {
+            if (await _confirmQuitGame() && mounted) {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text('♟  CHESS', style: TextStyle(
           fontFamily: 'serif', fontSize: 22, fontWeight: FontWeight.bold,
           color: Color(0xFFC8A96E), letterSpacing: 6,
