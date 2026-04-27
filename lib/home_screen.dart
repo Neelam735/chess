@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'billing_service.dart';
 import 'chess_ai.dart';
 import 'chess_controller.dart';
 import 'chess_logic.dart';
 import 'chess_game.dart';
+import 'paywall_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -55,6 +57,27 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  void _openPaywall() {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (_, __, ___) => const PaywallScreen(),
+        transitionsBuilder: (_, anim, __, child) {
+          final offset = Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(position: offset, child: child),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,28 +94,43 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           );
         },
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo
-                  _buildLogo(),
-                  const SizedBox(height: 52),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo
+                      _buildLogo(),
+                      const SizedBox(height: 52),
 
-                  // Mode buttons
-                  _buildModeCard(
-                    icon: '👥',
-                    title: 'Two Players',
-                    subtitle: 'Play against a friend on the same device',
-                    onTap: () => _startGame(GameMode.twoPlayer),
+                      // Mode buttons
+                      _buildModeCard(
+                        icon: '👥',
+                        title: 'Two Players',
+                        subtitle: 'Play against a friend on the same device',
+                        onTap: () => _startGame(GameMode.twoPlayer),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildVsComputerCard(),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildVsComputerCard(),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                top: 12,
+                right: 16,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: BillingService.instance.isPremium,
+                  builder: (context, premium, _) {
+                    if (premium) return const SizedBox.shrink();
+                    return _UpgradePill(onTap: _openPaywall);
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -446,6 +484,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpgradePill extends StatelessWidget {
+  const _UpgradePill({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFC8A96E).withOpacity(0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.workspace_premium_rounded,
+                size: 14, color: Color(0xFFC8A96E)),
+            SizedBox(width: 6),
+            Text(
+              'UPGRADE',
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: 2,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFC8A96E),
+              ),
+            ),
+          ],
         ),
       ),
     );
