@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -769,6 +770,7 @@ class _BottomCta extends StatelessWidget {
               ),
             ],
           ),
+          if (kDebugMode) const _DebugBillingStatus(),
           const SizedBox(height: 10),
           GestureDetector(
             onTap: onClose,
@@ -850,6 +852,53 @@ class _GoldGlow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DebugBillingStatus extends StatelessWidget {
+  const _DebugBillingStatus();
+
+  @override
+  Widget build(BuildContext context) {
+    final billing = BillingService.instance;
+    return ValueListenableBuilder<String?>(
+      valueListenable: billing.lastEvent,
+      builder: (context, event, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: billing.isPremium,
+          builder: (context, premium, __) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: billing.available,
+              builder: (context, available, ___) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111111),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _kBorder),
+                    ),
+                    child: Text(
+                      'DEBUG · '
+                      'available=$available · '
+                      'premium=$premium · '
+                      '${event ?? "(no events yet)"}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: _kGold,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -174,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 child: ValueListenableBuilder<bool>(
                   valueListenable: BillingService.instance.isPremium,
                   builder: (context, premium, _) {
-                    if (premium) return const SizedBox.shrink();
+                    if (premium) return const _PremiumBadge();
                     return _UpgradePill(onTap: _openPaywall);
                   },
                 ),
@@ -622,6 +622,37 @@ class _UpgradePill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PremiumBadge extends StatelessWidget {
+  const _PremiumBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC8A96E),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.check_circle_rounded, size: 14, color: Colors.black),
+          SizedBox(width: 6),
+          Text(
+            'PREMIUM',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }
