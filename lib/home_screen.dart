@@ -5,6 +5,7 @@ import 'chess_controller.dart';
 import 'chess_logic.dart';
 import 'chess_game.dart';
 import 'paywall_screen.dart';
+import 'puzzles_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late Animation<double> _fadeAnim;
   late Animation<double> _slideAnim;
 
-  AIDifficulty _selectedDifficulty = AIDifficulty.medium;
+  AIDifficulty _selectedDifficulty = AIDifficulty.easy;
   PieceColor _selectedColor = PieceColor.white;
 
   @override
@@ -78,6 +79,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
+  void _openPuzzles() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PuzzlesScreen()),
+    );
+  }
+
+  bool _isPremiumDifficulty(AIDifficulty d) =>
+      d == AIDifficulty.medium || d == AIDifficulty.hard;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,6 +126,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 16),
                       _buildVsComputerCard(),
+                      const SizedBox(height: 16),
+                      _buildModeCard(
+                        icon: '🧠',
+                        title: 'Daily Puzzles',
+                        subtitle: 'Tactics, mates and endgames to sharpen your play',
+                        onTap: _openPuzzles,
+                      ),
                     ],
                   ),
                 ),
@@ -328,51 +346,91 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: AIDifficulty.values.map((d) {
-              final isSelected = _selectedDifficulty == d;
-              final labels = ['Easy', 'Medium', 'Hard'];
-              final icons = ['🌱', '⚡', '🔥'];
-              final idx = d.index;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedDifficulty = d),
-                  child: Container(
-                    margin: EdgeInsets.only(right: idx < 2 ? 8 : 0),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFC8A96E).withOpacity(0.15)
-                          : const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFFC8A96E)
-                            : const Color(0xFF333),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(icons[idx], style: const TextStyle(fontSize: 16)),
-                        const SizedBox(height: 4),
-                        Text(
-                          labels[idx],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ValueListenableBuilder<bool>(
+            valueListenable: BillingService.instance.isPremium,
+            builder: (context, premium, _) {
+              return Row(
+                children: AIDifficulty.values.map((d) {
+                  final isSelected = _selectedDifficulty == d;
+                  final labels = ['Easy', 'Medium', 'Hard'];
+                  final icons = ['🌱', '⚡', '🔥'];
+                  final idx = d.index;
+                  final locked = !premium && _isPremiumDifficulty(d);
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        if (locked) {
+                          _openPaywall();
+                          return;
+                        }
+                        setState(() => _selectedDifficulty = d);
+                      },
+                      child: Container(
+                        margin: EdgeInsets.only(right: idx < 2 ? 8 : 0),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFC8A96E).withOpacity(0.15)
+                              : const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
                             color: isSelected
                                 ? const Color(0xFFC8A96E)
-                                : Colors.white54,
-                            letterSpacing: 0.5,
+                                : const Color(0xFF333),
+                            width: isSelected ? 1.5 : 1,
                           ),
                         ),
-                      ],
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Opacity(
+                              opacity: locked ? 0.55 : 1,
+                              child: Column(
+                                children: [
+                                  Text(icons[idx],
+                                      style: const TextStyle(fontSize: 16)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    labels[idx],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? const Color(0xFFC8A96E)
+                                          : Colors.white54,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (locked)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFC8A96E),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.lock_rounded,
+                                    size: 9,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
           const SizedBox(height: 16),
 
@@ -409,7 +467,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
                 elevation: 0,
               ),
-              onPressed: () => _startGame(GameMode.vsComputer),
+              onPressed: () {
+                if (!BillingService.instance.isPremium.value &&
+                    _isPremiumDifficulty(_selectedDifficulty)) {
+                  _openPaywall();
+                  return;
+                }
+                _startGame(GameMode.vsComputer);
+              },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [

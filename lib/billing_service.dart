@@ -42,6 +42,14 @@ class BillingService {
     if (response.productDetails.isNotEmpty) {
       product.value = response.productDetails.first;
     }
+
+    // Re-check ownership on every cold start so previously paying users
+    // aren't asked to pay again.
+    try {
+      await _iap.restorePurchases();
+    } catch (e) {
+      debugPrint('restorePurchases failed: $e');
+    }
   }
 
   Future<void> dispose() async {
