@@ -224,8 +224,8 @@ class _FeatureList extends StatelessWidget {
           subtitle: 'A balanced challenge to sharpen your play', locked: true),
       _Feature(icon: '♛', title: 'Unlock Hard AI',
           subtitle: 'Aggressive engine that punishes mistakes', locked: true),
-      _Feature(icon: '🧠', title: 'Access Chess Puzzles',
-          subtitle: 'Tactics, mates and endgames — every day', locked: true),
+      _Feature(icon: '🧠', title: '365 puzzles a year',
+          subtitle: 'A new puzzle every day + the full archive', locked: true),
       _Feature(icon: '⚡', title: 'Smooth, uninterrupted gameplay',
           subtitle: 'Faster boards, instant transitions'),
     ];
@@ -378,8 +378,8 @@ class _PuzzleCallout extends StatelessWidget {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Train your brain with chess puzzles designed to improve '
-                  'tactics, checkmates and strategy.',
+                  '1 new puzzle every day, free. Premium unlocks all 365 '
+                  'puzzles for the year — tactics, mates and endgames at your own pace.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.45,
@@ -434,7 +434,7 @@ class _ComparisonCard extends StatelessWidget {
                     accent: Colors.white54,
                     items: [
                       _CompareItem('Easy mode only', false),
-                      _CompareItem('3 puzzles per day', false),
+                      _CompareItem('1 puzzle per day', false),
                       _CompareItem('Ads enabled', false),
                     ],
                   ),
@@ -447,7 +447,7 @@ class _ComparisonCard extends StatelessWidget {
                     items: [
                       _CompareItem('No ads', true),
                       _CompareItem('Medium + Hard AI', true),
-                      _CompareItem('Unlimited puzzles', true),
+                      _CompareItem('365 puzzles a year', true),
                       _CompareItem('Full experience', true),
                     ],
                   ),

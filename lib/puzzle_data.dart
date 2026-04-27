@@ -1,29 +1,34 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show rootBundle;
+
 import 'chess_logic.dart';
 
-/// A handcrafted puzzle position. The board is built from a compact
-/// list of (algebraic-square, piece) pairs to keep the data declarative.
+/// A single, hand-rendered puzzle position. The board is built from a
+/// compact list of (algebraic-square, piece) tuples.
 class ChessPuzzle {
   const ChessPuzzle({
     required this.id,
     required this.title,
     required this.objective,
+    required this.difficulty,
+    required this.theme,
     required this.toMove,
     required this.solutionFrom,
     required this.solutionTo,
     required this.pieces,
-    this.difficulty = 'Easy',
   });
 
   final String id;
   final String title;
   final String objective;
-  final PieceColor toMove;
-  final String solutionFrom; // e.g. 'd1'
-  final String solutionTo;   // e.g. 'h5'
   final String difficulty;
-  final List<_PieceAt> pieces;
+  final String theme;
+  final PieceColor toMove;
+  final String solutionFrom;
+  final String solutionTo;
+  final List<PuzzlePiece> pieces;
 
-  /// Builds the 8x8 board for this puzzle.
   List<List<ChessPiece?>> buildBoard() {
     final board = List.generate(
       8,
@@ -39,13 +44,57 @@ class ChessPuzzle {
 
   Position get solutionFromPos => _algebraic(solutionFrom);
   Position get solutionToPos => _algebraic(solutionTo);
+
+  factory ChessPuzzle.fromJson(Map<String, dynamic> json) {
+    return ChessPuzzle(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      objective: json['objective'] as String,
+      difficulty: json['difficulty'] as String? ?? 'Easy',
+      theme: json['theme'] as String? ?? 'tactic',
+      toMove: _color(json['toMove'] as String),
+      solutionFrom: json['solutionFrom'] as String,
+      solutionTo: json['solutionTo'] as String,
+      pieces: (json['pieces'] as List)
+          .map((e) => PuzzlePiece.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
 }
 
-class _PieceAt {
-  const _PieceAt(this.square, this.color, this.type);
+class PuzzlePiece {
+  const PuzzlePiece({
+    required this.square,
+    required this.color,
+    required this.type,
+  });
+
   final String square;
   final PieceColor color;
   final PieceType type;
+
+  factory PuzzlePiece.fromJson(Map<String, dynamic> json) {
+    return PuzzlePiece(
+      square: json['square'] as String,
+      color: _color(json['color'] as String),
+      type: _type(json['type'] as String),
+    );
+  }
+}
+
+PieceColor _color(String s) =>
+    s == 'white' ? PieceColor.white : PieceColor.black;
+
+PieceType _type(String s) {
+  switch (s) {
+    case 'king':   return PieceType.king;
+    case 'queen':  return PieceType.queen;
+    case 'rook':   return PieceType.rook;
+    case 'bishop': return PieceType.bishop;
+    case 'knight': return PieceType.knight;
+    case 'pawn':   return PieceType.pawn;
+  }
+  throw ArgumentError('Unknown piece type: $s');
 }
 
 Position _algebraic(String s) {
@@ -54,102 +103,52 @@ Position _algebraic(String s) {
   return Position(8 - rank, file);
 }
 
-/// Five sample puzzles ranging from beginner to advanced. The first
-/// three are unlocked for free users (one per day, up to the daily
-/// limit); the rest require Premium.
-const List<ChessPuzzle> kPuzzles = [
-  ChessPuzzle(
-    id: 'p1',
-    title: 'Scholar\'s Mate',
-    objective: 'White to play. Mate in 1.',
-    difficulty: 'Easy',
-    toMove: PieceColor.white,
-    solutionFrom: 'h5',
-    solutionTo: 'f7',
-    pieces: [
-      _PieceAt('e1', PieceColor.white, PieceType.king),
-      _PieceAt('h5', PieceColor.white, PieceType.queen),
-      _PieceAt('c4', PieceColor.white, PieceType.bishop),
-      _PieceAt('e4', PieceColor.white, PieceType.pawn),
-      _PieceAt('e8', PieceColor.black, PieceType.king),
-      _PieceAt('f8', PieceColor.black, PieceType.bishop),
-      _PieceAt('d8', PieceColor.black, PieceType.queen),
-      _PieceAt('g8', PieceColor.black, PieceType.knight),
-      _PieceAt('b8', PieceColor.black, PieceType.knight),
-      _PieceAt('a8', PieceColor.black, PieceType.rook),
-      _PieceAt('h8', PieceColor.black, PieceType.rook),
-      _PieceAt('e5', PieceColor.black, PieceType.pawn),
-      _PieceAt('f7', PieceColor.black, PieceType.pawn),
-    ],
-  ),
-  ChessPuzzle(
-    id: 'p2',
-    title: 'Back-Rank Finish',
-    objective: 'White to play. Mate in 1.',
-    difficulty: 'Easy',
-    toMove: PieceColor.white,
-    solutionFrom: 'a1',
-    solutionTo: 'a8',
-    pieces: [
-      _PieceAt('g1', PieceColor.white, PieceType.king),
-      _PieceAt('a1', PieceColor.white, PieceType.rook),
-      _PieceAt('f2', PieceColor.white, PieceType.pawn),
-      _PieceAt('g2', PieceColor.white, PieceType.pawn),
-      _PieceAt('h2', PieceColor.white, PieceType.pawn),
-      _PieceAt('g8', PieceColor.black, PieceType.king),
-      _PieceAt('f7', PieceColor.black, PieceType.pawn),
-      _PieceAt('g7', PieceColor.black, PieceType.pawn),
-      _PieceAt('h7', PieceColor.black, PieceType.pawn),
-    ],
-  ),
-  ChessPuzzle(
-    id: 'p3',
-    title: 'Knight Fork',
-    objective: 'White to play. Win the queen.',
-    difficulty: 'Medium',
-    toMove: PieceColor.white,
-    solutionFrom: 'e5',
-    solutionTo: 'c6',
-    pieces: [
-      _PieceAt('e1', PieceColor.white, PieceType.king),
-      _PieceAt('e5', PieceColor.white, PieceType.knight),
-      _PieceAt('e8', PieceColor.black, PieceType.king),
-      _PieceAt('a7', PieceColor.black, PieceType.queen),
-      _PieceAt('a8', PieceColor.black, PieceType.rook),
-    ],
-  ),
-  ChessPuzzle(
-    id: 'p4',
-    title: 'Smothered Mate',
-    objective: 'White to play. Mate in 1.',
-    difficulty: 'Hard',
-    toMove: PieceColor.white,
-    solutionFrom: 'e6',
-    solutionTo: 'f7',
-    pieces: [
-      _PieceAt('e1', PieceColor.white, PieceType.king),
-      _PieceAt('e6', PieceColor.white, PieceType.knight),
-      _PieceAt('h8', PieceColor.black, PieceType.king),
-      _PieceAt('g8', PieceColor.black, PieceType.rook),
-      _PieceAt('h7', PieceColor.black, PieceType.pawn),
-      _PieceAt('g7', PieceColor.black, PieceType.pawn),
-    ],
-  ),
-  ChessPuzzle(
-    id: 'p5',
-    title: 'Queen Sacrifice',
-    objective: 'White to play. Mate in 2.',
-    difficulty: 'Hard',
-    toMove: PieceColor.white,
-    solutionFrom: 'd1',
-    solutionTo: 'd8',
-    pieces: [
-      _PieceAt('e1', PieceColor.white, PieceType.king),
-      _PieceAt('d1', PieceColor.white, PieceType.queen),
-      _PieceAt('a1', PieceColor.white, PieceType.rook),
-      _PieceAt('e8', PieceColor.black, PieceType.king),
-      _PieceAt('d8', PieceColor.black, PieceType.rook),
-      _PieceAt('a7', PieceColor.black, PieceType.pawn),
-    ],
-  ),
-];
+/// Loads the bundled 365-puzzle archive lazily and exposes the
+/// "today's puzzle" lookup used by the free tier.
+class PuzzleRepository {
+  PuzzleRepository._();
+  static final PuzzleRepository instance = PuzzleRepository._();
+
+  static const String _assetPath = 'assets/puzzles.json';
+
+  List<ChessPuzzle>? _cached;
+  Future<List<ChessPuzzle>>? _loading;
+
+  /// All puzzles in the archive, in deterministic order. The list has
+  /// exactly 365 entries (or whatever the bundled JSON contains).
+  Future<List<ChessPuzzle>> all() {
+    if (_cached != null) return Future.value(_cached);
+    return _loading ??= _load();
+  }
+
+  Future<List<ChessPuzzle>> _load() async {
+    final raw = await rootBundle.loadString(_assetPath);
+    final list = (json.decode(raw) as List)
+        .map((e) => ChessPuzzle.fromJson(e as Map<String, dynamic>))
+        .toList(growable: false);
+    _cached = list;
+    return list;
+  }
+
+  /// Today's puzzle, deterministically indexed by day-of-year so every
+  /// install on the same calendar day sees the same one.
+  Future<ChessPuzzle> todays() async {
+    final all0 = await all();
+    return all0[_dayOfYearIndex(all0.length)];
+  }
+
+  /// Index into [all] for [date] (defaults to today).
+  int _dayOfYearIndex(int length, [DateTime? date]) {
+    final d = date ?? DateTime.now();
+    final start = DateTime(d.year, 1, 1);
+    final dayOfYear = d.difference(start).inDays; // 0-based
+    return dayOfYear % length;
+  }
+
+  /// Public helper — useful for the archive view to mark which entry
+  /// is "today".
+  Future<int> todaysIndex() async {
+    final all0 = await all();
+    return _dayOfYearIndex(all0.length);
+  }
+}

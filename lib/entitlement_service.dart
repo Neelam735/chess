@@ -9,7 +9,7 @@ class EntitlementService {
   EntitlementService._();
   static final EntitlementService instance = EntitlementService._();
 
-  static const int freeDailyPuzzleLimit = 3;
+  static const int freeDailyPuzzleLimit = 1;
   static const String _kPuzzlesSolvedDate = 'puzzles_solved_date';
   static const String _kPuzzlesSolvedCount = 'puzzles_solved_count';
 

@@ -13,17 +13,32 @@ const Color _kBorder = Color(0xFF2A2A2A);
 const Color _kLight = Color(0xFFE6D2A6);
 const Color _kDark = Color(0xFF7A5C3A);
 
-class PuzzlesScreen extends StatelessWidget {
+// ─── List screen ─────────────────────────────────────────────────────────────
+
+class PuzzlesScreen extends StatefulWidget {
   const PuzzlesScreen({super.key});
 
-  void _openPaywall(BuildContext context) {
+  @override
+  State<PuzzlesScreen> createState() => _PuzzlesScreenState();
+}
+
+class _PuzzlesScreenState extends State<PuzzlesScreen> {
+  late final Future<_PuzzleData> _data;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = _PuzzleData.load();
+  }
+
+  void _openPaywall() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const PaywallScreen()),
     );
   }
 
-  void _openPuzzle(BuildContext context, ChessPuzzle puzzle) {
+  void _openPuzzle(ChessPuzzle puzzle) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => PuzzleSolveScreen(puzzle: puzzle)),
@@ -32,7 +47,6 @@ class PuzzlesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ent = EntitlementService.instance;
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
@@ -48,41 +62,18 @@ class PuzzlesScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: ValueListenableBuilder<bool>(
-        valueListenable: BillingService.instance.isPremium,
-        builder: (context, premium, _) {
-          return ValueListenableBuilder<int>(
-            valueListenable: ent.puzzlesSolvedToday,
-            builder: (context, solved, __) {
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-                children: [
-                  _QuotaCard(
-                    premium: premium,
-                    solved: solved,
-                    onUpgrade: () => _openPaywall(context),
-                  ),
-                  const SizedBox(height: 20),
-                  for (var i = 0; i < kPuzzles.length; i++) ...[
-                    _PuzzleTile(
-                      index: i,
-                      puzzle: kPuzzles[i],
-                      locked: !premium && i >= EntitlementService.freeDailyPuzzleLimit,
-                      onTap: () {
-                        final locked = !premium &&
-                            i >= EntitlementService.freeDailyPuzzleLimit;
-                        if (locked || !ent.canSolveAnotherPuzzle) {
-                          _openPaywall(context);
-                        } else {
-                          _openPuzzle(context, kPuzzles[i]);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              );
-            },
+      body: FutureBuilder<_PuzzleData>(
+        future: _data,
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: _kGold),
+            );
+          }
+          return _PuzzlesBody(
+            data: snap.data!,
+            onOpenPaywall: _openPaywall,
+            onOpenPuzzle: _openPuzzle,
           );
         },
       ),
@@ -90,72 +81,142 @@ class PuzzlesScreen extends StatelessWidget {
   }
 }
 
-class _QuotaCard extends StatelessWidget {
-  const _QuotaCard({
+class _PuzzleData {
+  _PuzzleData({required this.all, required this.todayIndex});
+  final List<ChessPuzzle> all;
+  final int todayIndex;
+
+  ChessPuzzle get today => all[todayIndex];
+
+  static Future<_PuzzleData> load() async {
+    final repo = PuzzleRepository.instance;
+    final all = await repo.all();
+    final idx = await repo.todaysIndex();
+    return _PuzzleData(all: all, todayIndex: idx);
+  }
+}
+
+class _PuzzlesBody extends StatelessWidget {
+  const _PuzzlesBody({
+    required this.data,
+    required this.onOpenPaywall,
+    required this.onOpenPuzzle,
+  });
+
+  final _PuzzleData data;
+  final VoidCallback onOpenPaywall;
+  final void Function(ChessPuzzle) onOpenPuzzle;
+
+  @override
+  Widget build(BuildContext context) {
+    final ent = EntitlementService.instance;
+    return ValueListenableBuilder<bool>(
+      valueListenable: BillingService.instance.isPremium,
+      builder: (context, premium, _) {
+        return ValueListenableBuilder<int>(
+          valueListenable: ent.puzzlesSolvedToday,
+          builder: (context, solvedToday, __) {
+            final dailyDone =
+                solvedToday >= EntitlementService.freeDailyPuzzleLimit;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+              children: [
+                _TierBanner(
+                  premium: premium,
+                  totalPuzzles: data.all.length,
+                  onUpgrade: onOpenPaywall,
+                ),
+                const SizedBox(height: 18),
+                _TodayHeroCard(
+                  puzzle: data.today,
+                  dayNumber: data.todayIndex + 1,
+                  solved: dailyDone,
+                  onTap: () {
+                    if (!premium && dailyDone) {
+                      onOpenPaywall();
+                    } else {
+                      onOpenPuzzle(data.today);
+                    }
+                  },
+                ),
+                const SizedBox(height: 22),
+                if (premium)
+                  _ArchiveList(
+                    all: data.all,
+                    todayIndex: data.todayIndex,
+                    onOpen: onOpenPuzzle,
+                  )
+                else
+                  _ArchiveTeaser(
+                    total: data.all.length,
+                    onUpgrade: onOpenPaywall,
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ─── Tier banner ─────────────────────────────────────────────────────────────
+
+class _TierBanner extends StatelessWidget {
+  const _TierBanner({
     required this.premium,
-    required this.solved,
+    required this.totalPuzzles,
     required this.onUpgrade,
   });
 
   final bool premium;
-  final int solved;
+  final int totalPuzzles;
   final VoidCallback onUpgrade;
 
   @override
   Widget build(BuildContext context) {
-    final remaining = (EntitlementService.freeDailyPuzzleLimit - solved)
-        .clamp(0, EntitlementService.freeDailyPuzzleLimit);
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            _kGold.withOpacity(0.10),
-            _kSurface,
-          ],
-        ),
-        border: Border.all(color: _kGold.withOpacity(0.30)),
+        borderRadius: BorderRadius.circular(14),
+        color: _kSurface,
+        border: Border.all(color: _kBorder),
       ),
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: _kGold.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kGold.withOpacity(0.35)),
+              color: _kGold.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kGold.withOpacity(0.3)),
             ),
             alignment: Alignment.center,
-            child: const Text('🧠', style: TextStyle(fontSize: 22)),
+            child: const Text('🧠', style: TextStyle(fontSize: 20)),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  premium ? 'Unlimited puzzles' : 'Today: $solved / ${EntitlementService.freeDailyPuzzleLimit} solved',
+                  premium ? 'Premium · Full archive unlocked' : 'Free · 1 puzzle a day',
                   style: const TextStyle(
                     fontFamily: 'serif',
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   premium
-                      ? 'Train your tactics, mates and endgames freely.'
-                      : (remaining > 0
-                          ? '$remaining free puzzle${remaining == 1 ? '' : 's'} left today.'
-                          : 'You\'ve completed today\'s free puzzles. Come back tomorrow or upgrade for unlimited access.'),
+                      ? '$totalPuzzles puzzles a year — solve in any order.'
+                      : 'Premium unlocks all $totalPuzzles puzzles for the year.',
                   style: TextStyle(
                     fontSize: 12,
-                    height: 1.4,
+                    height: 1.35,
                     color: Colors.white.withOpacity(0.6),
                   ),
                 ),
@@ -168,7 +229,7 @@ class _QuotaCard extends StatelessWidget {
               onTap: onUpgrade,
               behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: _kGold,
                   borderRadius: BorderRadius.circular(999),
@@ -191,17 +252,19 @@ class _QuotaCard extends StatelessWidget {
   }
 }
 
-class _PuzzleTile extends StatelessWidget {
-  const _PuzzleTile({
-    required this.index,
+// ─── Today hero ──────────────────────────────────────────────────────────────
+
+class _TodayHeroCard extends StatelessWidget {
+  const _TodayHeroCard({
     required this.puzzle,
-    required this.locked,
+    required this.dayNumber,
+    required this.solved,
     required this.onTap,
   });
 
-  final int index;
   final ChessPuzzle puzzle;
-  final bool locked;
+  final int dayNumber;
+  final bool solved;
   final VoidCallback onTap;
 
   @override
@@ -209,71 +272,129 @@ class _PuzzleTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: _kSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: locked ? _kGold.withOpacity(0.3) : _kBorder,
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A1612), Color(0xFF0F0F0F)],
           ),
+          border: Border.all(color: _kGold.withOpacity(0.45)),
+          boxShadow: [
+            BoxShadow(
+              color: _kGold.withOpacity(0.12),
+              blurRadius: 28,
+              spreadRadius: 1,
+            ),
+          ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _MiniBoardThumb(puzzle: puzzle),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _kGold,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    "TODAY'S PUZZLE",
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.8,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Day $dayNumber',
+                  style: TextStyle(
+                    fontSize: 11,
+                    letterSpacing: 1.5,
+                    color: Colors.white.withOpacity(0.45),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MiniBoardThumb(puzzle: puzzle, size: 96),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '#${index + 1} · ${puzzle.title}',
+                        puzzle.title,
                         style: const TextStyle(
                           fontFamily: 'serif',
-                          fontSize: 15,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           letterSpacing: 0.2,
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        puzzle.objective,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        children: [
+                          _Pill(text: puzzle.difficulty.toUpperCase()),
+                          _Pill(text: puzzle.theme.toUpperCase()),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    puzzle.objective,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.6),
-                      height: 1.35,
-                    ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton(
+                onPressed: onTap,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kGold,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _kGold.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: _kGold.withOpacity(0.25)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      solved ? Icons.check_rounded : Icons.play_arrow_rounded,
+                      size: 18,
                     ),
-                    child: Text(
-                      puzzle.difficulty.toUpperCase(),
+                    const SizedBox(width: 8),
+                    Text(
+                      solved ? 'Replay Today' : 'Solve Now',
                       style: const TextStyle(
-                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
-                        color: _kGold,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              locked ? Icons.lock_rounded : Icons.chevron_right_rounded,
-              size: locked ? 16 : 22,
-              color: _kGold,
             ),
           ],
         ),
@@ -282,15 +403,244 @@ class _PuzzleTile extends StatelessWidget {
   }
 }
 
-class _MiniBoardThumb extends StatelessWidget {
-  const _MiniBoardThumb({required this.puzzle});
+class _Pill extends StatelessWidget {
+  const _Pill({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _kGold.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _kGold.withOpacity(0.25)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+          color: _kGold,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Archive (premium) ───────────────────────────────────────────────────────
+
+class _ArchiveList extends StatelessWidget {
+  const _ArchiveList({
+    required this.all,
+    required this.todayIndex,
+    required this.onOpen,
+  });
+
+  final List<ChessPuzzle> all;
+  final int todayIndex;
+  final void Function(ChessPuzzle) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            'FULL ARCHIVE',
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 2.5,
+              fontWeight: FontWeight.bold,
+              color: Colors.white38,
+            ),
+          ),
+        ),
+        for (var i = 0; i < all.length; i++) ...[
+          _ArchiveTile(
+            index: i,
+            puzzle: all[i],
+            isToday: i == todayIndex,
+            onTap: () => onOpen(all[i]),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
+class _ArchiveTile extends StatelessWidget {
+  const _ArchiveTile({
+    required this.index,
+    required this.puzzle,
+    required this.isToday,
+    required this.onTap,
+  });
+
+  final int index;
   final ChessPuzzle puzzle;
+  final bool isToday;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _kSurface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isToday ? _kGold.withOpacity(0.5) : _kBorder,
+          ),
+        ),
+        child: Row(
+          children: [
+            _MiniBoardThumb(puzzle: puzzle, size: 56),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Day ${index + 1} · ${puzzle.title}',
+                        style: const TextStyle(
+                          fontFamily: 'serif',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      if (isToday) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _kGold,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'TODAY',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${puzzle.difficulty} · ${puzzle.theme}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _kGold),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Archive teaser (free) ───────────────────────────────────────────────────
+
+class _ArchiveTeaser extends StatelessWidget {
+  const _ArchiveTeaser({required this.total, required this.onUpgrade});
+  final int total;
+  final VoidCallback onUpgrade;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onUpgrade,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [_kGold.withOpacity(0.10), _kSurface],
+          ),
+          border: Border.all(color: _kGold.withOpacity(0.30)),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.lock_rounded, color: _kGold, size: 22),
+            const SizedBox(height: 8),
+            const Text(
+              'Full Puzzle Archive',
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Unlock all $total puzzles for the year — solve at your own pace.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.45,
+                color: Colors.white.withOpacity(0.6),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+              decoration: BoxDecoration(
+                color: _kGold,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'UPGRADE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Mini board thumbnail ────────────────────────────────────────────────────
+
+class _MiniBoardThumb extends StatelessWidget {
+  const _MiniBoardThumb({required this.puzzle, this.size = 64});
+  final ChessPuzzle puzzle;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 64,
-      height: 64,
+      width: size,
+      height: size,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: CustomPaint(painter: _MiniBoardPainter(puzzle.buildBoard())),
@@ -343,7 +693,7 @@ class _MiniBoardPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ─── Puzzle solving screen ───────────────────────────────────────────────────
+// ─── Solve screen ────────────────────────────────────────────────────────────
 
 class PuzzleSolveScreen extends StatefulWidget {
   const PuzzleSolveScreen({super.key, required this.puzzle});

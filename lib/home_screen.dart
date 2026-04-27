@@ -161,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       _buildModeCard(
                         icon: '🧠',
                         title: 'Daily Puzzles',
-                        subtitle: 'Tactics, mates and endgames to sharpen your play',
+                        subtitle: '1 free puzzle a day · 365 a year on Premium',
                         onTap: _openPuzzles,
                       ),
                     ],
