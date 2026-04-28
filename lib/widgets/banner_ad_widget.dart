@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../ad_helper.dart';
+import '../billing_service.dart';
 
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
@@ -13,10 +14,24 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isLoaded = false;
 
+  bool get _isPremium => BillingService.instance.isPremium.value;
+
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    BillingService.instance.isPremium.addListener(_onPremiumChanged);
+    if (!_isPremium) _loadAd();
+  }
+
+  void _onPremiumChanged() {
+    if (!mounted) return;
+    if (_isPremium) {
+      _bannerAd?.dispose();
+      _bannerAd = null;
+      setState(() => _isLoaded = false);
+    } else if (_bannerAd == null) {
+      _loadAd();
+    }
   }
 
   void _loadAd() {
@@ -26,7 +41,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          if (mounted) setState(() => _isLoaded = true);
+          if (!mounted || _isPremium) return;
+          setState(() => _isLoaded = true);
         },
         onAdFailedToLoad: (ad, error) {
           debugPrint('Banner ad failed to load: $error');
@@ -38,6 +54,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPremium) return const SizedBox.shrink();
     if (!_isLoaded || _bannerAd == null) {
       return Container(
         height: 50,
@@ -55,6 +72,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   void dispose() {
+    BillingService.instance.isPremium.removeListener(_onPremiumChanged);
     _bannerAd?.dispose();
     super.dispose();
   }
