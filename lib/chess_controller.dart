@@ -21,6 +21,8 @@ class ChessController extends ChangeNotifier {
   Position? _lastMoveTo;
   Position? _pendingPromotion;
   bool _aiThinking = false;
+  Position? _hintFrom;
+  Position? _hintTo;
 
   final GameMode gameMode;
   final AIDifficulty aiDifficulty;
@@ -56,8 +58,25 @@ class ChessController extends ChangeNotifier {
   List<ChessPiece> get capturedByBlack        => _capturedByBlack;
   Position? get lastMoveFrom                  => _lastMoveFrom;
   Position? get lastMoveTo                    => _lastMoveTo;
+  Position? get hintFrom                      => _hintFrom;
+  Position? get hintTo                        => _hintTo;
+  Position? get enPassantTarget               => _enPassantTarget;
+  Map<String, bool> get castlingRights        => _castlingRights;
   bool get isGameOver                         => _isCheckmate || _isStalemate;
   bool get awaitingPromotion                  => _pendingPromotion != null;
+
+  void setHint(Position from, Position to) {
+    _hintFrom = from;
+    _hintTo = to;
+    notifyListeners();
+  }
+
+  void clearHint() {
+    if (_hintFrom == null && _hintTo == null) return;
+    _hintFrom = null;
+    _hintTo = null;
+    notifyListeners();
+  }
 
   String get statusText {
     if (_isCheckmate) {
@@ -137,6 +156,8 @@ class ChessController extends ChangeNotifier {
 
   // ── Execute move ──────────────────────────────────────────────────────────
   void _executeMove(Position from, Position to) {
+    _hintFrom = null;
+    _hintTo = null;
     final piece    = _board[from.row][from.col]!;
     ChessPiece? captured = _board[to.row][to.col];
     bool isEnPassant = false;

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'billing_service.dart';
 import 'chess_ai.dart';
 import 'chess_controller.dart';
-import 'chess_logic.dart';
+import 'chess_logic.dart' show PieceColor, PieceType;
 import 'ad_helper.dart';
 import 'widgets/board_widget.dart';
 import 'widgets/captured_pieces.dart';
@@ -33,6 +36,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
+  Timer? _hintClearTimer;
+
+  bool get _isPremium => BillingService.instance.isPremium.value;
 
   @override
   void initState() {
@@ -43,35 +49,64 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       playerColor: widget.playerColor,
     );
     _controller.addListener(_onStateChange);
-    _loadInterstitialAd();
-    _loadRewardedAd();
+    BillingService.instance.isPremium.addListener(_onPremiumChanged);
+    _onPremiumChanged();
   }
 
+  /// Loads (or unloads) ads to match the current entitlement. Called on
+  /// init and any time the premium flag flips.
+  void _onPremiumChanged() {
+    if (_isPremium) {
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      if (_rewardedAdReady) {
+        setState(() => _rewardedAdReady = false);
+      }
+    } else {
+      if (_interstitialAd == null) _loadInterstitialAd();
+      if (_rewardedAd == null) _loadRewardedAd();
+    }
+  }
 
   // ── Ads ───────────────────────────────────────────────────────────────────
   void _loadInterstitialAd() {
+    if (_isPremium) return;
     InterstitialAd.load(
       adUnitId: AdHelper.interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _interstitialAd = ad,
+        onAdLoaded: (ad) {
+          if (_isPremium) { ad.dispose(); return; }
+          _interstitialAd = ad;
+        },
         onAdFailedToLoad: (e) => debugPrint('Interstitial failed: $e'),
       ),
     );
   }
 
   void _loadRewardedAd() {
+    if (_isPremium) return;
     RewardedAd.load(
       adUnitId: AdHelper.rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) { _rewardedAd = ad; setState(() => _rewardedAdReady = true); },
+        onAdLoaded: (ad) {
+          if (_isPremium) { ad.dispose(); return; }
+          _rewardedAd = ad;
+          if (mounted) setState(() => _rewardedAdReady = true);
+        },
         onAdFailedToLoad: (e) => debugPrint('Rewarded failed: $e'),
       ),
     );
   }
 
   void _showInterstitial({VoidCallback? onDone}) {
+    if (_isPremium) {
+      onDone?.call();
+      return;
+    }
     if (_interstitialAd != null) {
       _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
         onAdDismissedFullScreenContent: (ad) {
@@ -88,7 +123,14 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     }
   }
 
-  void _showRewardedAd() {
+  /// Hint button entry point. Premium users get a hint immediately;
+  /// free users watch a rewarded ad to earn one.
+  void _onHintRequested() {
+    if (_controller.isAiTurn || _controller.isGameOver) return;
+    if (_isPremium) {
+      _showHint();
+      return;
+    }
     if (_rewardedAd == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Ad not ready yet, try again shortly.'),
@@ -106,32 +148,73 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     );
   }
 
+  /// Computes the best move for the side to move using the AI engine
+  /// (depth 3, hard) against the live game state, highlights it on the
+  /// board, and surfaces a SnackBar describing the suggestion.
   void _showHint() {
-    int total = 0;
-    final board = _controller.board;
-    final turn  = _controller.currentTurn;
-    for (int r = 0; r < 8; r++)
-      for (int c = 0; c < 8; c++)
-        if (board[r][c]?.color == turn)
-          total += ChessLogic.getLegalMoves(board, Position(r, c), null, {}).length;
+    final turn = _controller.currentTurn;
+    final best = ChessAI.getBestMove(
+      board: _controller.board,
+      aiColor: turn,
+      difficulty: AIDifficulty.hard,
+      enPassantTarget: _controller.enPassantTarget,
+      castlingRights: _controller.castlingRights,
+    );
 
+    if (best == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 3),
+        backgroundColor: const Color(0xFF1E1E1E),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: _isPremium ? 24 : 70, left: 12, right: 12,
+        ),
+        content: const Text(
+          'No legal moves available.',
+          style: TextStyle(color: Color(0xFFC8A96E)),
+        ),
+      ));
+      return;
+    }
+
+    _controller.setHint(best.from, best.to);
+    _hintClearTimer?.cancel();
+    _hintClearTimer = Timer(const Duration(seconds: 6), () {
+      if (mounted) _controller.clearHint();
+    });
+
+    final piece = _controller.board[best.from.row][best.from.col];
+    final pieceName = piece == null ? 'piece' : _pieceName(piece.type);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       duration: const Duration(seconds: 4),
       backgroundColor: const Color(0xFF1E1E1E),
-      behavior: SnackBarBehavior.floating,   // ← floats above banner
-      margin: const EdgeInsets.only(
-        bottom: 70,    // ← pushes above banner ad height (50) + safe area
-        left: 12,
-        right: 12,
+      behavior: SnackBarBehavior.floating,
+      margin: EdgeInsets.only(
+        bottom: _isPremium ? 24 : 70, left: 12, right: 12,
       ),
       content: Row(children: [
-        const Text('♟ ', style: TextStyle(fontSize: 18)),
-        Text(
-          '${turn == PieceColor.white ? "White" : "Black"} has $total possible moves.',
-          style: const TextStyle(color: Color(0xFFC8A96E)),
+        const Icon(Icons.lightbulb_rounded, size: 18, color: Color(0xFFC8A96E)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Try ${turn == PieceColor.white ? "White" : "Black"} '
+            '$pieceName: ${best.from} → ${best.to}',
+            style: const TextStyle(color: Color(0xFFC8A96E)),
+          ),
         ),
       ]),
     ));
+  }
+
+  String _pieceName(PieceType t) {
+    switch (t) {
+      case PieceType.king:   return 'King';
+      case PieceType.queen:  return 'Queen';
+      case PieceType.rook:   return 'Rook';
+      case PieceType.bishop: return 'Bishop';
+      case PieceType.knight: return 'Knight';
+      case PieceType.pawn:   return 'Pawn';
+    }
   }
 
   // ── State change ──────────────────────────────────────────────────────────
@@ -173,29 +256,95 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     );
   }
 
+  Future<bool> _confirmQuitGame() async {
+    if (_controller.isGameOver) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text(
+          'Quit Game?',
+          style: TextStyle(
+            color: Color(0xFFC8A96E),
+            fontFamily: 'serif',
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'Your current game progress will be lost.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep Playing',
+                style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Quit',
+                style: TextStyle(color: Color(0xFFC8A96E),
+                    fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final isLandscape = MediaQuery.of(context).size.width >
         MediaQuery.of(context).size.height;
 
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (await _confirmQuitGame() && mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: _buildScaffold(isLandscape),
+    );
+  }
+
+  Widget _buildScaffold(bool isLandscape) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF161616),
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFFC8A96E)),
+          tooltip: 'Home',
+          onPressed: () async {
+            if (await _confirmQuitGame() && mounted) {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text('♟  CHESS', style: TextStyle(
           fontFamily: 'serif', fontSize: 22, fontWeight: FontWeight.bold,
           color: Color(0xFFC8A96E), letterSpacing: 6,
         )),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: Icon(Icons.lightbulb_outline,
-                color: _rewardedAdReady ? const Color(0xFFC8A96E) : Colors.white24),
-            onPressed: _rewardedAdReady ? _showRewardedAd : null,
-            tooltip: 'Watch ad for hint',
+          ValueListenableBuilder<bool>(
+            valueListenable: BillingService.instance.isPremium,
+            builder: (context, premium, _) {
+              final enabled = premium || _rewardedAdReady;
+              return IconButton(
+                icon: Icon(
+                  premium ? Icons.lightbulb_rounded : Icons.lightbulb_outline,
+                  color: enabled ? const Color(0xFFC8A96E) : Colors.white24,
+                ),
+                onPressed: enabled ? _onHintRequested : null,
+                tooltip: premium ? 'Hint' : 'Watch ad for hint',
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Color(0xFFC8A96E)),
@@ -207,12 +356,18 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       ),
       body: Column(children: [
         Expanded(child: isLandscape ? _buildLandscape() : _buildPortrait()),
-        SafeArea(
-          top: false,
-          left: false,
-          right: false,
-          bottom: true,       // ← pushes banner above nav bar
-          child: const BannerAdWidget(),
+        ValueListenableBuilder<bool>(
+          valueListenable: BillingService.instance.isPremium,
+          builder: (context, premium, _) {
+            if (premium) return const SizedBox.shrink();
+            return const SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              bottom: true,
+              child: BannerAdWidget(),
+            );
+          },
         ),
       ]),
     );
@@ -288,6 +443,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   void dispose() {
     _controller.removeListener(_onStateChange);
     _controller.dispose();
+    BillingService.instance.isPremium.removeListener(_onPremiumChanged);
+    _hintClearTimer?.cancel();
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
     super.dispose();

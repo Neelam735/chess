@@ -1,8 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'billing_service.dart';
 import 'chess_ai.dart';
 import 'chess_controller.dart';
 import 'chess_logic.dart';
 import 'chess_game.dart';
+import 'paywall_screen.dart';
+import 'puzzles_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late Animation<double> _fadeAnim;
   late Animation<double> _slideAnim;
 
-  AIDifficulty _selectedDifficulty = AIDifficulty.medium;
+  AIDifficulty _selectedDifficulty = AIDifficulty.easy;
   PieceColor _selectedColor = PieceColor.white;
 
   @override
@@ -40,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   void _startGame(GameMode mode) {
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => ChessGameScreen(
@@ -51,6 +55,67 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         transitionsBuilder: (_, anim, __, child) =>
             FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  void _openPaywall() {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (_, __, ___) => const PaywallScreen(),
+        transitionsBuilder: (_, anim, __, child) {
+          final offset = Tween<Offset>(
+            begin: const Offset(0, 0.06),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic));
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(position: offset, child: child),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
+  void _openPuzzles() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PuzzlesScreen()),
+    );
+  }
+
+  bool _isPremiumDifficulty(AIDifficulty d) =>
+      d == AIDifficulty.medium || d == AIDifficulty.hard;
+
+  Future<void> _onLogoLongPress() async {
+    final premium = await BillingService.instance.togglePremiumDebug();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF1E1E1E),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(
+              premium ? Icons.workspace_premium_rounded : Icons.lock_outline_rounded,
+              size: 16,
+              color: const Color(0xFFC8A96E),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              premium ? 'DEBUG: Premium ON' : 'DEBUG: Premium OFF',
+              style: const TextStyle(
+                color: Color(0xFFC8A96E),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -71,28 +136,50 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           );
         },
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo
-                  _buildLogo(),
-                  const SizedBox(height: 52),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo
+                      _buildLogo(),
+                      const SizedBox(height: 52),
 
-                  // Mode buttons
-                  _buildModeCard(
-                    icon: '👥',
-                    title: 'Two Players',
-                    subtitle: 'Play against a friend on the same device',
-                    onTap: () => _startGame(GameMode.twoPlayer),
+                      // Mode buttons
+                      _buildModeCard(
+                        icon: '👥',
+                        title: 'Two Players',
+                        subtitle: 'Play against a friend on the same device',
+                        onTap: () => _startGame(GameMode.twoPlayer),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildVsComputerCard(),
+                      const SizedBox(height: 16),
+                      _buildModeCard(
+                        icon: '🧠',
+                        title: 'Daily Puzzles',
+                        subtitle: '1 free puzzle a day · 365 a year on Premium',
+                        onTap: _openPuzzles,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildVsComputerCard(),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                top: 12,
+                right: 16,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: BillingService.instance.isPremium,
+                  builder: (context, premium, _) {
+                    if (premium) return const _PremiumBadge();
+                    return _UpgradePill(onTap: _openPaywall);
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -103,27 +190,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Column(
       children: [
         // Animated chess board icon
-        Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2A2A2A), Color(0xFF1A1A1A)],
-            ),
-            border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.4), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFC8A96E).withOpacity(0.2),
-                blurRadius: 30,
-                spreadRadius: 2,
+        GestureDetector(
+          onLongPress: kDebugMode ? _onLogoLongPress : null,
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2A2A2A), Color(0xFF1A1A1A)],
               ),
-            ],
-          ),
-          child: const Center(
-            child: Text('♟', style: TextStyle(fontSize: 52)),
+              border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.4), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC8A96E).withOpacity(0.2),
+                  blurRadius: 30,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text('♟', style: TextStyle(fontSize: 52)),
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -290,51 +380,91 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: AIDifficulty.values.map((d) {
-              final isSelected = _selectedDifficulty == d;
-              final labels = ['Easy', 'Medium', 'Hard'];
-              final icons = ['🌱', '⚡', '🔥'];
-              final idx = d.index;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedDifficulty = d),
-                  child: Container(
-                    margin: EdgeInsets.only(right: idx < 2 ? 8 : 0),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFC8A96E).withOpacity(0.15)
-                          : const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFFC8A96E)
-                            : const Color(0xFF333),
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(icons[idx], style: const TextStyle(fontSize: 16)),
-                        const SizedBox(height: 4),
-                        Text(
-                          labels[idx],
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ValueListenableBuilder<bool>(
+            valueListenable: BillingService.instance.isPremium,
+            builder: (context, premium, _) {
+              return Row(
+                children: AIDifficulty.values.map((d) {
+                  final isSelected = _selectedDifficulty == d;
+                  final labels = ['Easy', 'Medium', 'Hard'];
+                  final icons = ['🌱', '⚡', '🔥'];
+                  final idx = d.index;
+                  final locked = !premium && _isPremiumDifficulty(d);
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        if (locked) {
+                          _openPaywall();
+                          return;
+                        }
+                        setState(() => _selectedDifficulty = d);
+                      },
+                      child: Container(
+                        margin: EdgeInsets.only(right: idx < 2 ? 8 : 0),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFC8A96E).withOpacity(0.15)
+                              : const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
                             color: isSelected
                                 ? const Color(0xFFC8A96E)
-                                : Colors.white54,
-                            letterSpacing: 0.5,
+                                : const Color(0xFF333),
+                            width: isSelected ? 1.5 : 1,
                           ),
                         ),
-                      ],
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Opacity(
+                              opacity: locked ? 0.55 : 1,
+                              child: Column(
+                                children: [
+                                  Text(icons[idx],
+                                      style: const TextStyle(fontSize: 16)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    labels[idx],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? const Color(0xFFC8A96E)
+                                          : Colors.white54,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (locked)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFC8A96E),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.lock_rounded,
+                                    size: 9,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               );
-            }).toList(),
+            },
           ),
           const SizedBox(height: 16),
 
@@ -371,7 +501,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
                 elevation: 0,
               ),
-              onPressed: () => _startGame(GameMode.vsComputer),
+              onPressed: () {
+                if (!BillingService.instance.isPremium.value &&
+                    _isPremiumDifficulty(_selectedDifficulty)) {
+                  _openPaywall();
+                  return;
+                }
+                _startGame(GameMode.vsComputer);
+              },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
@@ -447,6 +584,75 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _UpgradePill extends StatelessWidget {
+  const _UpgradePill({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFC8A96E).withOpacity(0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: const Color(0xFFC8A96E).withOpacity(0.45)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.workspace_premium_rounded,
+                size: 14, color: Color(0xFFC8A96E)),
+            SizedBox(width: 6),
+            Text(
+              'UPGRADE',
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: 2,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFC8A96E),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PremiumBadge extends StatelessWidget {
+  const _PremiumBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFC8A96E),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.check_circle_rounded, size: 14, color: Colors.black),
+          SizedBox(width: 6),
+          Text(
+            'PREMIUM',
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ],
       ),
     );
   }

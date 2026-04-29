@@ -110,6 +110,10 @@ class _BoardWidgetState extends State<BoardWidget> {
         ctrl.lastMoveFrom!.row == row && ctrl.lastMoveFrom!.col == col;
     final isLastTo   = ctrl.lastMoveTo != null &&
         ctrl.lastMoveTo!.row == row && ctrl.lastMoveTo!.col == col;
+    final isHintFrom = ctrl.hintFrom != null &&
+        ctrl.hintFrom!.row == row && ctrl.hintFrom!.col == col;
+    final isHintTo   = ctrl.hintTo != null &&
+        ctrl.hintTo!.row == row && ctrl.hintTo!.col == col;
     final isLight    = (row + col) % 2 == 0;
     final isCapture  = isLegal && piece != null;
     final isInCheck  = piece != null &&
@@ -122,6 +126,8 @@ class _BoardWidgetState extends State<BoardWidget> {
         : const Color(0xFF8B6343);
     if (isSelected) {
       bg = const Color(0xFFC8A96E);
+    } else if (isHintFrom || isHintTo) {
+      bg = isLight ? const Color(0xFFE6C488) : const Color(0xFFB6883E);
     } else if (isLastFrom || isLastTo) {
       bg = isLight ? const Color(0xFFD4C07A) : const Color(0xFF9E7A30);
     }
