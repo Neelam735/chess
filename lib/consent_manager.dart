@@ -10,13 +10,41 @@ class ConsentManager {
   /// True once MobileAds has been initialised with valid consent.
   static bool adsAvailable = false;
 
+  /// Debug-only: forces a simulated geography for the UMP SDK.
+  /// Set to [DebugGeography.debugGeographyEea] to always show the consent
+  /// form, or [DebugGeography.debugGeographyNotEea] to skip it.
+  /// Set to `null` to use the device's real location. Ignored in release.
+  static DebugGeography? debugGeography = DebugGeography.debugGeographyEea;
+
+  /// Debug-only: device hash(es) eligible for [debugGeography].
+  /// Run the app once and copy the hash printed by the Mobile Ads SDK
+  /// (e.g. "Use RequestConfiguration ... setTestDeviceIds(\"ABC123\")").
+  static List<String> debugTestIdentifiers = const <String>[];
+
+  /// Debug-only: clears stored consent on every launch so the form is
+  /// shown each run while testing. No effect in release.
+  static bool debugResetOnLaunch = true;
+
   /// Requests consent-info update and, if the UMP form is required, shows it.
   /// Returns true when the app is allowed to request ads.
   static Future<bool> gatherConsent() async {
     final completer = Completer<bool>();
 
+    if (kDebugMode && debugResetOnLaunch) {
+      await ConsentInformation.instance.reset();
+    }
+
+    final params = ConsentRequestParameters(
+      consentDebugSettings: kDebugMode && debugGeography != null
+          ? ConsentDebugSettings(
+              debugGeography: debugGeography,
+              testIdentifiers: debugTestIdentifiers,
+            )
+          : null,
+    );
+
     ConsentInformation.instance.requestConsentInfoUpdate(
-      ConsentRequestParameters(),
+      params,
       () async {
         // Consent info updated successfully.
         if (await ConsentInformation.instance.isConsentFormAvailable()) {
