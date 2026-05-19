@@ -611,7 +611,7 @@ class _PriceBlock extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'Pay once, unlock forever',
+                    'Pay once, use lifetime',
                     style: TextStyle(
                       fontFamily: 'serif',
                       fontSize: 14,
