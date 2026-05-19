@@ -536,122 +536,67 @@ class _PriceBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final billing = BillingService.instance;
     return ValueListenableBuilder<ProductDetails?>(
-      valueListenable: billing.product,
+      valueListenable: BillingService.instance.product,
       builder: (context, product, _) {
-        return ValueListenableBuilder<int?>(
-          valueListenable: billing.priceAmountMicros,
-          builder: (context, micros, _) {
-            final priceText = product?.price ?? '₹9';
-            final effectiveMicros = micros ?? 9000000;
-            final savings = ((BillingService.kRegularPriceMicros - effectiveMicros) /
-                    BillingService.kRegularPriceMicros *
-                    100)
-                .round();
-            final hasDiscount = savings > 0;
-
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF181513), Color(0xFF0F0F0F)],
-                ),
-                border: Border.all(color: _kGold.withOpacity(0.35)),
-              ),
-              child: Column(
+        final priceText = product?.price ?? '—';
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF181513), Color(0xFF0F0F0F)],
+            ),
+            border: Border.all(color: _kGold.withOpacity(0.35)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (hasDiscount) ...[
-                    _SavingsBadge(savingsPercent: savings),
-                    const SizedBox(height: 10),
-                    Text(
-                      BillingService.kRegularPriceDisplay,
-                      style: TextStyle(
-                        fontFamily: 'serif',
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white.withOpacity(0.4),
-                        decoration: TextDecoration.lineThrough,
-                        decorationColor: Colors.white.withOpacity(0.4),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        priceText,
-                        style: const TextStyle(
-                          fontFamily: 'serif',
-                          fontSize: 48,
-                          height: 1,
-                          fontWeight: FontWeight.bold,
-                          color: _kGoldBright,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'one-time',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white.withOpacity(0.55),
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Pay once, use lifetime',
-                    style: TextStyle(
+                  Text(
+                    priceText,
+                    style: const TextStyle(
                       fontFamily: 'serif',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
+                      fontSize: 48,
+                      height: 1,
+                      fontWeight: FontWeight.bold,
+                      color: _kGoldBright,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'one-time',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.55),
+                        letterSpacing: 1.2,
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          },
+              const SizedBox(height: 6),
+              const Text(
+                'Pay once, use lifetime',
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
         );
       },
-    );
-  }
-}
-
-class _SavingsBadge extends StatelessWidget {
-  const _SavingsBadge({required this.savingsPercent});
-  final int savingsPercent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A3A1A),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.greenAccent.withOpacity(0.5)),
-      ),
-      child: Text(
-        '🔥  SAVE $savingsPercent% — LIMITED LAUNCH OFFER',
-        style: const TextStyle(
-          fontSize: 10,
-          letterSpacing: 1.8,
-          fontWeight: FontWeight.bold,
-          color: Colors.greenAccent,
-        ),
-      ),
     );
   }
 }
@@ -758,92 +703,48 @@ class _BottomCta extends StatelessWidget {
                 return ValueListenableBuilder<ProductDetails?>(
                   valueListenable: billing.product,
                   builder: (context, product, __) {
-                    return ValueListenableBuilder<int?>(
-                      valueListenable: billing.priceAmountMicros,
-                      builder: (context, micros, ___) {
-                        final priceText = product?.price ?? '₹9';
-                        final effectiveMicros = micros ?? 9000000;
-                        final savings = ((BillingService.kRegularPriceMicros -
-                                    effectiveMicros) /
-                                BillingService.kRegularPriceMicros *
-                                100)
-                            .round();
-                        final hasDiscount = savings > 0;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _kGold,
-                                  foregroundColor: Colors.black,
-                                  disabledBackgroundColor:
-                                      _kGold.withOpacity(0.6),
-                                  disabledForegroundColor: Colors.black54,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 0,
+                    final priceText = product?.price ?? '—';
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kGold,
+                          foregroundColor: Colors.black,
+                          disabledBackgroundColor: _kGold.withOpacity(0.6),
+                          disabledForegroundColor: Colors.black54,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: busy ? null : billing.buyPremium,
+                        child: busy
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.black,
                                 ),
-                                onPressed: busy ? null : billing.buyPremium,
-                                child: busy
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.4,
-                                          color: Colors.black,
-                                        ),
-                                      )
-                                    : Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(Icons.lock_open_rounded,
-                                              size: 20),
-                                          const SizedBox(width: 10),
-                                          Text(
-                                            'Unlock for $priceText',
-                                            style: const TextStyle(
-                                              fontFamily: 'serif',
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 1.5,
-                                            ),
-                                          ),
-                                          if (hasDiscount) ...[
-                                            const SizedBox(width: 10),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 7,
-                                                      vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black
-                                                    .withOpacity(0.25),
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                'SAVE $savings%',
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  letterSpacing: 1,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.lock_open_rounded, size: 20),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Unlock for $priceText',
+                                    style: const TextStyle(
+                                      fontFamily: 'serif',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                      ),
                     );
                   },
                 );

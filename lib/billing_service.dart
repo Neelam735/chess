@@ -16,10 +16,6 @@ class BillingService {
   /// Product ID configured in Google Play Console / App Store Connect.
   static const String premiumProductId = 'chess_premium_unlock';
 
-  /// Regular (non-promotional) price used for "was / strikethrough" display.
-  static const int kRegularPriceMicros = 99000000; // ₹99
-  static const String kRegularPriceDisplay = '₹99';
-
   /// SharedPreferences key for the debug-only "force premium" flag.
   static const String _kDebugPremiumKey = 'debug_premium_override';
 
@@ -39,7 +35,6 @@ class BillingService {
   final ValueNotifier<bool> isPurchasing = ValueNotifier<bool>(false);
 
   /// Current price in micros from Google Play (null until resolved).
-  /// Use with [kRegularPriceMicros] to compute the savings percentage.
   final ValueNotifier<int?> priceAmountMicros = ValueNotifier<int?>(null);
 
   /// Last billing event surfaced for QA / debugging. Mirrors what gets
