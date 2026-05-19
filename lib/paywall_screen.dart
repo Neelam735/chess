@@ -539,7 +539,7 @@ class _PriceBlock extends StatelessWidget {
     return ValueListenableBuilder<ProductDetails?>(
       valueListenable: BillingService.instance.product,
       builder: (context, product, _) {
-        final priceText = product?.price ?? '₹99';
+        final priceText = product?.price ?? '—';
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
           decoration: BoxDecoration(
@@ -584,7 +584,7 @@ class _PriceBlock extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Pay once, unlock forever',
+                'Pay once, use lifetime',
                 style: TextStyle(
                   fontFamily: 'serif',
                   fontSize: 14,
@@ -703,9 +703,7 @@ class _BottomCta extends StatelessWidget {
                 return ValueListenableBuilder<ProductDetails?>(
                   valueListenable: billing.product,
                   builder: (context, product, __) {
-                    final label = product != null
-                        ? 'Unlock for ${product.price}'
-                        : 'Unlock for ₹99';
+                    final priceText = product?.price ?? '—';
                     return SizedBox(
                       width: double.infinity,
                       height: 56,
@@ -736,7 +734,7 @@ class _BottomCta extends StatelessWidget {
                                   const Icon(Icons.lock_open_rounded, size: 20),
                                   const SizedBox(width: 10),
                                   Text(
-                                    label,
+                                    'Unlock for $priceText',
                                     style: const TextStyle(
                                       fontFamily: 'serif',
                                       fontSize: 16,

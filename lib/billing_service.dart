@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps Google Play Billing for the chess app's single non-consumable
@@ -32,6 +33,9 @@ class BillingService {
 
   /// Whether a purchase is currently in flight.
   final ValueNotifier<bool> isPurchasing = ValueNotifier<bool>(false);
+
+  /// Current price in micros from Google Play (null until resolved).
+  final ValueNotifier<int?> priceAmountMicros = ValueNotifier<int?>(null);
 
   /// Last billing event surfaced for QA / debugging. Mirrors what gets
   /// logged via [debugPrint] but lets us also render it on screen.
@@ -73,6 +77,7 @@ class BillingService {
     if (response.productDetails.isNotEmpty) {
       product.value = response.productDetails.first;
       _log('product resolved: ${product.value!.id} @ ${product.value!.price}');
+      _extractAndroidPriceDetails(product.value!);
     }
 
     // Re-check ownership on every cold start so previously paying users
@@ -125,6 +130,13 @@ class BillingService {
     await prefs.setBool(_kDebugPremiumKey, next);
     isPremium.value = next;
     return next;
+  }
+
+  void _extractAndroidPriceDetails(ProductDetails details) {
+    // rawPrice is the numeric price from the store (e.g. 9.0 for ₹9).
+    // Multiply by 1,000,000 to get micros for savings calculation.
+    priceAmountMicros.value = (details.rawPrice * 1000000).round();
+    _log('priceAmountMicros: ${priceAmountMicros.value} (${details.currencyCode})');
   }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
