@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps Google Play Billing for the chess app's single non-consumable
@@ -138,11 +138,10 @@ class BillingService {
   }
 
   void _extractAndroidPriceDetails(ProductDetails details) {
-    if (details is! GooglePlayProductDetails) return;
-    final offer = details.oneTimePurchaseOfferDetails;
-    if (offer == null) return;
-    priceAmountMicros.value = offer.priceAmountMicros;
-    _log('priceAmountMicros: ${offer.priceAmountMicros} (${offer.priceCurrencyCode})');
+    // rawPrice is the numeric price from the store (e.g. 9.0 for ₹9).
+    // Multiply by 1,000,000 to get micros for savings calculation.
+    priceAmountMicros.value = (details.rawPrice * 1000000).round();
+    _log('priceAmountMicros: ${priceAmountMicros.value} (${details.currencyCode})');
   }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
