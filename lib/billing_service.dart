@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Wraps Google Play Billing for the chess app's single non-consumable
@@ -14,6 +15,10 @@ class BillingService {
 
   /// Product ID configured in Google Play Console / App Store Connect.
   static const String premiumProductId = 'chess_premium_unlock';
+
+  /// Regular (non-promotional) price used for "was / strikethrough" display.
+  static const int kRegularPriceMicros = 99000000; // ₹99
+  static const String kRegularPriceDisplay = '₹99';
 
   /// SharedPreferences key for the debug-only "force premium" flag.
   static const String _kDebugPremiumKey = 'debug_premium_override';
@@ -32,6 +37,10 @@ class BillingService {
 
   /// Whether a purchase is currently in flight.
   final ValueNotifier<bool> isPurchasing = ValueNotifier<bool>(false);
+
+  /// Current price in micros from Google Play (null until resolved).
+  /// Use with [kRegularPriceMicros] to compute the savings percentage.
+  final ValueNotifier<int?> priceAmountMicros = ValueNotifier<int?>(null);
 
   /// Last billing event surfaced for QA / debugging. Mirrors what gets
   /// logged via [debugPrint] but lets us also render it on screen.
@@ -73,6 +82,7 @@ class BillingService {
     if (response.productDetails.isNotEmpty) {
       product.value = response.productDetails.first;
       _log('product resolved: ${product.value!.id} @ ${product.value!.price}');
+      _extractAndroidPriceDetails(product.value!);
     }
 
     // Re-check ownership on every cold start so previously paying users
@@ -125,6 +135,14 @@ class BillingService {
     await prefs.setBool(_kDebugPremiumKey, next);
     isPremium.value = next;
     return next;
+  }
+
+  void _extractAndroidPriceDetails(ProductDetails details) {
+    if (details is! GooglePlayProductDetails) return;
+    final offer = details.oneTimePurchaseOfferDetails;
+    if (offer == null) return;
+    priceAmountMicros.value = offer.priceAmountMicros;
+    _log('priceAmountMicros: ${offer.priceAmountMicros} (${offer.priceCurrencyCode})');
   }
 
   void _onPurchaseUpdate(List<PurchaseDetails> purchases) {
