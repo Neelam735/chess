@@ -539,7 +539,7 @@ class _PriceBlock extends StatelessWidget {
     return ValueListenableBuilder<ProductDetails?>(
       valueListenable: BillingService.instance.product,
       builder: (context, product, _) {
-        final priceText = product?.price ?? '₹99';
+        final priceText = product?.price ?? '₹9';
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
           decoration: BoxDecoration(
@@ -705,7 +705,7 @@ class _BottomCta extends StatelessWidget {
                   builder: (context, product, __) {
                     final label = product != null
                         ? 'Unlock for ${product.price}'
-                        : 'Unlock for ₹99';
+                        : 'Unlock for ₹9';
                     return SizedBox(
                       width: double.infinity,
                       height: 56,
